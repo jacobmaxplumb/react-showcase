@@ -1,5 +1,6 @@
 var React = require('react');
 var ReactDOM = require('react-dom');
+var _ = require('lodash');
 
 var AptList = require('./AptList');
 var AddAppointment = require('./AddAppointment');
@@ -8,53 +9,116 @@ var SearchAppointments = require('./SearchAppointments');
 var MainInterface = React.createClass({
 	getInitialState: function(){
 		return {
-			 data : [
-				{
-					"perName": "Spot",
-					"ownerName": "Jacob Plumb",
-					"aptDate": "2016-06-24",
-					"aptNotes": "This is Something"
-				},
-				{
-					"perName": "Frank",
-					"ownerName": "Jacob Plumb",
-					"aptDate": "2016-06-24",
-					"aptNotes": "This is Something 2"
-				},
-				{
-					"perName": "Hoe",
-					"ownerName": "Jacob Plumb",
-					"aptDate": "2016-06-24",
-					"aptNotes": "This is Something 3"
-				}
-			]
+			aptBodyVisible: false,
+			orderBy: 'petName',
+			orderDir: 'asc',
+			queryText: '',
+			myAppointments: []
 		}
 	},
 
+	componentDidMount: function(){
+		this.serverRequest = $.get('./js/data.json', function(result){
+			var tempApts = result;
+			this.setState({
+				myAppointments: tempApts
+			});
+		}.bind(this));
+	},
+
+	componentWillUnmount: function(){
+		this.serverRequest.abort();
+	},
+
+	deleteMessage: function(item){
+		var allApts = this.state.myAppointments;
+		var newApts = _.without(allApts, item);
+		this.setState({
+			myAppointments: newApts
+		})
+	},
+
+	toggleAddDisplay: function(){
+		var tempVisibility = !this.state.aptBodyVisible;
+		this.setState({
+			aptBodyVisible: tempVisibility
+		})
+	},
+
+	addItem: function(tempItem){
+		var tempApts = this.state.myAppointments;
+		tempApts.push(tempItem);
+		this.setState({
+			myAppointments: tempApts
+		});
+	},
+
+	reOrder: function(orderBy, orderDir){
+		this.setState({
+			orderBy: orderBy,
+			orderDir: orderDir
+		});
+	},
+
+	searchApts: function(q){
+		this.setState({
+			queryText: q
+		});
+	},
+
 	render: function() {
+		var filteredApts = [];
+		var orderBy = this.state.orderBy;
+		var orderDir = this.state.orderDir;
+		var queryText = this.state.queryText;
+		var myAppointments = this.state.myAppointments;
+
+		myAppointments.forEach(function(item){
+			if(
+				(item.petName.toLowerCase().indexOf(queryText) != -1) ||
+				(item.ownerName.toLowerCase().indexOf(queryText) != -1) ||
+				(item.aptDate.toLowerCase().indexOf(queryText) != -1) ||
+				(item.aptNotes.toLowerCase().indexOf(queryText) != -1) 
+			) {
+				filteredApts.push(item);
+			}
+		});
+
+		filteredApts = _.orderBy(filteredApts, function(item){
+			return item[orderBy].toLowerCase();
+		}, orderDir);
+
+		filteredApts = filteredApts.map(function(item, index){
+			return (
+				<AptList key = {index}
+						singleItem = {item}
+						whichItem = {item}
+						onDelete = {this.deleteMessage} 
+				/>
+			)
+		}.bind(this));
 		return (
 			<div className="interface">
+				<AddAppointment 
+					bodyVisible = {this.state.aptBodyVisible} 
+					handleToggle = { this.toggleAddDisplay } 
+					addApt = {this.addItem}
+				/>
+				<SearchAppointments 
+					orderBy = {this.state.orderBy}
+					orderDir = {this.state.orderDir}
+					onReOrder = {this.reOrder}
+					onSearch = {this.searchApts}
+				/>
 				<ul className="item-list media-list">	
-					<li className="pet-item media">
-						<div className="pet-info media-body">
-							<div className="pet-head">
-								<span className="pet-name">{this.state.data[0].petName}</span>
-								<span className="apt-date pull-right">{this.state.data[0].aptDate}</span>
-							</div>
-							<div className="owner-name">
-								<span className="label-item">Owner:</span>
-								{this.state.data[0].ownerName}
-							</div>
-							<div className="apt-notes">
-								{this.state.data[0].aptNotes}
-							</div>
-						</div>
-					</li>
+					{filteredApts}
 				</ul>
 			</div>
 		)
 	}
 });
+
+
 
 ReactDOM.render(
 	<MainInterface />,
